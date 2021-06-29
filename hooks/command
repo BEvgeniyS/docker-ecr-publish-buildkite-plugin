@@ -38,7 +38,7 @@ pull_cache() {
 
 read_caches_from() {
   if read_list_property 'CACHE_FROM'; then
-    local -A tasks
+    local -A cache_tasks
     CACHES_TMP_DIR="$(mktemp -d)"
     CACHES_TMP_FILE="${CACHES_TMP_DIR}/caches"
     touch "${CACHES_TMP_FILE}"
@@ -61,17 +61,17 @@ read_caches_from() {
           ecr_login "$region" "$account_id"
           pull_cache "${image}" "${account_id}" "${region}" "${tag}" &
           local backgrounded_pid=$!
-          tasks[${backgrounded_pid}]="${region}-${cache}"
-          echo "[${tasks[${backgrounded_pid}]}] Backgrounding task"
+          cache_tasks[${backgrounded_pid}]="${region}-${cache}"
+          echo "[${cache_tasks[${backgrounded_pid}]}] Backgrounding task"
         done
       fi
     done
     # Wait for completion
-    for pid in "${!tasks[@]}"; do
+    for pid in "${!cache_tasks[@]}"; do
       if ! wait "$pid"; then
-        echo "[${tasks[${pid}]}] Cache task failed"
+        echo "[${cache_tasks[${pid}]}] Cache task failed"
       else
-        echo "[${tasks[${pid}]}] Cache task succeeded"
+        echo "[${cache_tasks[${pid}]}] Cache task succeeded"
       fi
     done
     mapfile -t caches_from < "${CACHES_TMP_FILE}"
@@ -129,7 +129,7 @@ read_list_property() {
 
 push_tags() {
   local tags=("${@}")
-  local -A tasks
+  local -A push_tasks
   for region in "${regions[@]}"; do
 
     echo "Logging in to ECR, region: ${region}"
@@ -142,15 +142,15 @@ push_tags() {
       docker tag "${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ECR_NAME}" "${image}:${tag}"
       docker push "${image}:${tag}" &
       local backgrounded_pid=$!
-      tasks[${backgrounded_pid}]="${region}-${image}:${tag}"
+      push_tasks[${backgrounded_pid}]="${region}-${image}:${tag}"
     done
     # Wait for completion
-    for pid in "${!tasks[@]}"; do
+    for pid in "${!push_tasks[@]}"; do
       if ! wait "$pid"; then
-        echo "[${tasks[${pid}]}] Push task failed"
+        echo "[${push_tasks[${pid}]}] Push task failed"
         exit 1
       else
-        echo "[${tasks[${pid}]}] Push task succeeded"
+        echo "[${push_tasks[${pid}]}] Push task succeeded"
       fi
     done
   done
