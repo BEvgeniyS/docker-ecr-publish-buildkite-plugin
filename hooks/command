@@ -64,15 +64,14 @@ read_caches_from() {
           tasks[${backgrounded_pid}]="${region}-${cache}"
           echo "[${tasks[${backgrounded_pid}]}] Backgrounding task"
         done
-
-        # Wait for completion
-        for pid in "${!tasks[@]}"; do
-          if ! wait "$pid"; then
-            echo "[${tasks[${pid}]}] Cache task failed"
-          else
-            echo "[${tasks[${pid}]}] Cache task succeeded"
-          fi
-        done
+      fi
+    done
+    # Wait for completion
+    for pid in "${!tasks[@]}"; do
+      if ! wait "$pid"; then
+        echo "[${tasks[${pid}]}] Cache task failed"
+      else
+        echo "[${tasks[${pid}]}] Cache task succeeded"
       fi
     done
     mapfile -t caches_from < "${CACHES_TMP_FILE}"
@@ -130,7 +129,7 @@ read_list_property() {
 
 push_tags() {
   local tags=("${@}")
-
+  local -A tasks
   for region in "${regions[@]}"; do
 
     echo "Logging in to ECR, region: ${region}"
