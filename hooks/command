@@ -25,8 +25,23 @@ read_build_args() {
   fi
 }
 
+pull_cache() {
+  image=${1}
+  account_id=${2}
+  region=${3}
+  tag=${4}
+
+  cache="$(get_ecr_url "${image}" "${account_id}" "${region}"):${tag}"
+  docker pull "${cache}" || return
+  echo -e "--cache-from\n${cache}" >> "${CACHES_TMP_FILE}"
+}
+
 read_caches_from() {
   if read_list_property 'CACHE_FROM'; then
+    local -A tasks
+    CACHES_TMP_DIR="$(mktemp -d)"
+    CACHES_TMP_FILE="${CACHES_TMP_DIR}/caches"
+    touch "${CACHES_TMP_FILE}"
     for cache in "${result[@]}"; do
       if [[ ${cache} == ecr://* ]]; then
         local image
@@ -42,19 +57,26 @@ read_caches_from() {
         fi
 
         for region in "${regions[@]}"; do
-
           echo "Logging in to ECR, region: ${region}"
           ecr_login "$region" "$account_id"
+          pull_cache "${image}" "${account_id}" "${region}" "${tag}" &
+          local backgrounded_pid=$!
+          tasks[${backgrounded_pid}]="${region}-${cache}"
+          echo "[${tasks[${backgrounded_pid}]}] Backgrounding task"
+        done
 
-          cache="$(get_ecr_url "${image}" "${account_id}" "${region}"):${tag}"
-
-          docker pull "${cache}" || true
-          caches_from+=('--cache-from' "${cache}")
-
+        # Wait for completion
+        for pid in "${!tasks[@]}"; do
+          if ! wait "$pid"; then
+            echo "[${tasks[${pid}]}] Cache task failed"
+          else
+            echo "[${tasks[${pid}]}] Cache task succeeded"
+          fi
         done
       fi
-
     done
+    mapfile -t caches_from < "${CACHES_TMP_FILE}"
+    rm -rf "${CACHES_TMP_DIR}"
   fi
 }
 
@@ -119,9 +141,19 @@ push_tags() {
     for tag in "${tags[@]}"; do
       echo "Tag: '${tag}'"
       docker tag "${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ECR_NAME}" "${image}:${tag}"
-      docker push "${image}:${tag}"
+      docker push "${image}:${tag}" &
+      local backgrounded_pid=$!
+      tasks[${backgrounded_pid}]="${region}-${image}:${tag}"
     done
-
+    # Wait for completion
+    for pid in "${!tasks[@]}"; do
+      if ! wait "$pid"; then
+        echo "[${tasks[${pid}]}] Push task failed"
+        exit 1
+      else
+        echo "[${tasks[${pid}]}] Push task succeeded"
+      fi
+    done
   done
 }
 
@@ -189,7 +221,7 @@ if [[ -n ${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ADDITIONAL_BUILD_ARGS:-} ]]; then
   echo "Additional build args: ${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ADDITIONAL_BUILD_ARGS}"
 fi
 echo "Build args:" ${build_args[@]+"${build_args[@]}"}
-echo "Cache from:" ${caches_from[@]+"${caches_from[@]}"}
+echo "Cache from: ${caches_from[*]}"}
 echo "Dockerfile: ${dockerfile}"
 echo "Build context: ${build_context}"
 echo "Target: ${target}"
@@ -198,7 +230,7 @@ docker build \
   --tag "${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ECR_NAME}" \
   ${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ADDITIONAL_BUILD_ARGS:-} \
   ${build_args[@]+"${build_args[@]}"} \
-  ${caches_from[@]+"${caches_from[@]}"} \
+  "${caches_from[@]}" \
   ${target_arg} \
   "${build_context}"
 
