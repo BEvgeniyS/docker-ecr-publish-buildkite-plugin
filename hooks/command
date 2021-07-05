@@ -25,17 +25,6 @@ read_build_args() {
   fi
 }
 
-pull_cache() {
-  image=${1}
-  account_id=${2}
-  region=${3}
-  tag=${4}
-
-  cache="$(get_ecr_url "${image}" "${account_id}" "${region}"):${tag}"
-  docker pull "${cache}" || return
-  echo -e "--cache-from\n${cache}" >> "${CACHES_TMP_FILE}"
-}
-
 read_caches_from() {
   if read_list_property 'CACHE_FROM'; then
     CURRENT_LOGGED_IN_REGION=""
@@ -71,6 +60,7 @@ read_caches_from() {
           fi
         done
       fi
+
     done
   fi
 }
@@ -126,6 +116,7 @@ read_list_property() {
 push_tags() {
   local tags=("${@}")
   local -A push_tasks
+
   for region in "${regions[@]}"; do
 
     echo "Logging in to ECR, region: ${region}"
@@ -149,6 +140,7 @@ push_tags() {
         exit 1
       fi
     done
+
   done
 }
 
@@ -215,7 +207,6 @@ echo '--- Building Docker image'
 if [[ -n ${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ADDITIONAL_BUILD_ARGS:-} ]]; then
   echo "Additional build args: ${BUILDKITE_PLUGIN_DOCKER_ECR_PUBLISH_ADDITIONAL_BUILD_ARGS}"
 fi
-
 echo "Build args:" ${build_args[@]+"${build_args[@]}"}
 echo "Cache from:" ${caches_from[@]+"${caches_from[@]}"}
 echo "Dockerfile: ${dockerfile}"
