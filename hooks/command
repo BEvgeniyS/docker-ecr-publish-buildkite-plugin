@@ -134,7 +134,7 @@ push_tags() {
     done
     # Wait for completion
     for pid in "${!push_tasks[@]}"; do
-      if waitpid "$pid"; then
+      if wait "$pid"; then
         echo "[${push_tasks[${pid}]}] Push task succeeded"
       else
         echo "[${push_tasks[${pid}]}] Push task failed"
