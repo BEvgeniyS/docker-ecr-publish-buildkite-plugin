@@ -45,6 +45,7 @@ read_caches_from() {
         fi
 
         for region in "${regions[@]}"; do
+
           if ! { [ "${CURRENT_LOGGED_IN_REGION}" = "${region}" ] && [ "${CURRENT_LOGGED_IN_ACCOUNT}" = "${account_id}" ]; }; then
             echo "Logging in to ECR, region: ${region}"
             ecr_login "$region" "$account_id"
