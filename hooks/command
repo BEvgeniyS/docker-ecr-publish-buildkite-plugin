@@ -134,7 +134,6 @@ push_tags() {
   for pid in "${!push_tasks[@]}"; do
     if wait "$pid"; then
       echo "[${push_tasks[${pid}]}] Push task succeeded"
-      unset push_tasks["${pid}"]
     else
       echo "[${push_tasks[${pid}]}] Push task failed"
       exit 1
