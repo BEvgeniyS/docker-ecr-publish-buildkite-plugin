@@ -115,9 +115,8 @@ read_list_property() {
 }
 
 push_tags() {
-
+  local -A push_tasks
   for region in "${regions[@]}"; do
-    local -A push_tasks
     echo "Logging in to ECR, region: ${region}"
     ecr_login "$region" "$account_id"
 
