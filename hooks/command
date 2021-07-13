@@ -115,8 +115,8 @@ read_list_property() {
 }
 
 push_tags() {
-  local -A push_tasks
   for region in "${regions[@]}"; do
+    local -A push_tasks
     echo "Logging in to ECR, region: ${region}"
     ecr_login "$region" "$account_id"
 
@@ -129,15 +129,16 @@ push_tags() {
       local backgrounded_pid=$!
       push_tasks[${backgrounded_pid}]="${region}-${image}:${tag}"
     done
-  done
-  # Wait for completion
-  for pid in "${!push_tasks[@]}"; do
-    if wait "$pid"; then
-      echo "[${push_tasks[${pid}]}] Push task succeeded"
-    else
-      echo "[${push_tasks[${pid}]}] Push task failed"
-      exit 1
-    fi
+    # Wait for completion
+    for pid in "${!push_tasks[@]}"; do
+      if wait "$pid"; then
+        echo "[${push_tasks[${pid}]}] Push task succeeded"
+      else
+        echo "[${push_tasks[${pid}]}] Push task failed"
+        exit 1
+      fi
+    done
+    unset push_tasks
   done
 }
 
